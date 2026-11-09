@@ -1,0 +1,905 @@
+
+import SwiftUI
+
+// MARK: - Equipment Model
+
+class Equipment: Identifiable {
+    let equipmentID: String
+    let purchaseYear: Int
+
+    var id: String { equipmentID }
+
+    private(set) var name: String
+    private(set) var manufacturer: String
+    private(set) var isAvailable: Bool
+
+    init(
+        equipmentID: String,
+        name: String,
+        manufacturer: String,
+        purchaseYear: Int
+    ) {
+        self.equipmentID = equipmentID
+        self.name = name
+        self.manufacturer = manufacturer
+        self.purchaseYear = purchaseYear
+        self.isAvailable = true
+    }
+
+    func updateInformation(name: String, manufacturer: String) {
+        self.name = name
+        self.manufacturer = manufacturer
+    }
+
+    func borrow() -> Bool {
+        guard isAvailable else { return false }
+        isAvailable = false
+        return true
+    }
+
+    func returnEquipment() -> Bool {
+        guard !isAvailable else { return false }
+        isAvailable = true
+        return true
+    }
+
+    func displayInfo() -> String {
+        """
+        ID: \(equipmentID)
+        Name: \(name)
+        Manufacturer: \(manufacturer)
+        Purchase Year: \(purchaseYear)
+        Status: \(isAvailable ? "Available" : "Borrowed")
+        """
+    }
+}
+
+// MARK: - Laptop
+
+class Laptop: Equipment {
+    let processor: String
+    let memory: Int
+    let storage: Int
+
+    init(
+        equipmentID: String,
+        name: String,
+        manufacturer: String,
+        purchaseYear: Int,
+        processor: String,
+        memory: Int,
+        storage: Int
+    ) {
+        self.processor = processor
+        self.memory = memory
+        self.storage = storage
+
+        super.init(
+            equipmentID: equipmentID,
+            name: name,
+            manufacturer: manufacturer,
+            purchaseYear: purchaseYear
+        )
+    }
+}
+
+// MARK: - Tablet
+
+class Tablet: Equipment {
+    let screenSize: Double
+    let batteryCapacity: Int
+    let supportsPen: Bool
+
+    init(
+        equipmentID: String,
+        name: String,
+        manufacturer: String,
+        purchaseYear: Int,
+        screenSize: Double,
+        batteryCapacity: Int,
+        supportsPen: Bool
+    ) {
+        self.screenSize = screenSize
+        self.batteryCapacity = batteryCapacity
+        self.supportsPen = supportsPen
+
+        super.init(
+            equipmentID: equipmentID,
+            name: name,
+            manufacturer: manufacturer,
+            purchaseYear: purchaseYear
+        )
+    }
+}
+
+// MARK: - Digital Camera
+
+class DigitalCamera: Equipment {
+    let resolution: Double
+    let opticalZoom: Int
+
+    init(
+        equipmentID: String,
+        name: String,
+        manufacturer: String,
+        purchaseYear: Int,
+        resolution: Double,
+        opticalZoom: Int
+    ) {
+        self.resolution = resolution
+        self.opticalZoom = opticalZoom
+
+        super.init(
+            equipmentID: equipmentID,
+            name: name,
+            manufacturer: manufacturer,
+            purchaseYear: purchaseYear
+        )
+    }
+}
+
+// MARK: - Borrowing Record
+
+class BorrowingRecord: Identifiable {
+    let id = UUID()
+    let borrower: String
+    let equipment: Equipment
+    let borrowDate: Date
+
+    private(set) var returnDate: Date?
+
+    var isReturned: Bool {
+        returnDate != nil
+    }
+
+    init(borrower: String, equipment: Equipment) {
+        self.borrower = borrower
+        self.equipment = equipment
+        self.borrowDate = Date()
+    }
+
+    func returnItem() -> Bool {
+        guard !isReturned else { return false }
+
+        guard equipment.returnEquipment() else {
+            return false
+        }
+
+        returnDate = Date()
+        return true
+    }
+}
+
+// MARK: - Errors
+
+enum EquipmentStoreError: LocalizedError {
+    case duplicateID
+    case equipmentNotFound
+    case invalidInput
+    case equipmentUnavailable
+    case alreadyBorrowed
+    case noActiveBorrowing
+
+    var errorDescription: String? {
+        switch self {
+        case .duplicateID:
+            return "Equipment ID already exists."
+
+        case .equipmentNotFound:
+            return "Equipment not found."
+
+        case .invalidInput:
+            return "Please enter valid information."
+
+        case .equipmentUnavailable:
+            return "This equipment is not available."
+
+        case .alreadyBorrowed:
+            return "This equipment already has an active borrowing record."
+
+        case .noActiveBorrowing:
+            return "This equipment has not been borrowed."
+
+        }
+    }
+}
+
+// MARK: - Equipment Store
+
+class EquipmentStore: ObservableObject {
+    @Published private(set) var equipmentList: [Equipment] = []
+    @Published private(set) var borrowingRecords: [BorrowingRecord] = []
+
+    init() {
+        loadSampleData()
+    }
+
+    private func loadSampleData() {
+        equipmentList = [
+            Laptop(
+                equipmentID: "LAP001",
+                name: "Dell XPS 15",
+                manufacturer: "Dell",
+                purchaseYear: 2024,
+                processor: "Intel Core i7",
+                memory: 16,
+                storage: 512
+            ),
+
+            Tablet(
+                equipmentID: "TAB001",
+                name: "iPad Air",
+                manufacturer: "Apple",
+                purchaseYear: 2023,
+                screenSize: 10.9,
+                batteryCapacity: 7600,
+                supportsPen: true
+            ),
+
+            DigitalCamera(
+                equipmentID: "CAM001",
+                name: "Canon EOS R50",
+                manufacturer: "Canon",
+                purchaseYear: 2024,
+                resolution: 24.2,
+                opticalZoom: 3
+            )
+        ]
+    }
+
+    func registerEquipment(_ equipment: Equipment) throws {
+        guard !equipmentList.contains(where: {
+            $0.equipmentID == equipment.equipmentID
+        }) else {
+            throw EquipmentStoreError.duplicateID
+        }
+
+        equipmentList.append(equipment)
+    }
+
+    func retrieveEquipment(byID id: String) -> Equipment? {
+        equipmentList.first {
+            $0.equipmentID == id
+        }
+    }
+
+    func getAllEquipment() -> [Equipment] {
+        equipmentList
+    }
+
+    func updateEquipment(
+        id: String,
+        name: String,
+        manufacturer: String
+    ) throws {
+        guard let equipment = retrieveEquipment(byID: id) else {
+            throw EquipmentStoreError.equipmentNotFound
+        }
+
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty,
+              !manufacturer.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw EquipmentStoreError.invalidInput
+        }
+
+        equipment.updateInformation(
+            name: name,
+            manufacturer: manufacturer
+        )
+
+        objectWillChange.send()
+    }
+
+    func borrowEquipment(
+        equipmentID: String,
+        borrower: String
+    ) throws {
+        guard let equipment = retrieveEquipment(byID: equipmentID) else {
+            throw EquipmentStoreError.equipmentNotFound
+        }
+
+        guard !borrower.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw EquipmentStoreError.invalidInput
+        }
+
+        guard !borrowingRecords.contains(where: {
+            $0.equipment.equipmentID == equipmentID && !$0.isReturned
+        }) else {
+            throw EquipmentStoreError.alreadyBorrowed
+        }
+
+        guard equipment.isAvailable else {
+            throw EquipmentStoreError.equipmentUnavailable
+        }
+
+        guard equipment.borrow() else {
+            throw EquipmentStoreError.equipmentUnavailable
+        }
+
+        let record = BorrowingRecord(
+            borrower: borrower,
+            equipment: equipment
+        )
+
+        borrowingRecords.append(record)
+        objectWillChange.send()
+    }
+
+    func returnEquipment(equipmentID: String) throws {
+        guard let record = borrowingRecords.last(where: {
+            $0.equipment.equipmentID == equipmentID && !$0.isReturned
+        }) else {
+            throw EquipmentStoreError.noActiveBorrowing
+        }
+
+        guard record.returnItem() else {
+            throw EquipmentStoreError.noActiveBorrowing
+        }
+
+        objectWillChange.send()
+    }
+
+    func getBorrowingHistory(equipmentID: String) -> [BorrowingRecord] {
+        borrowingRecords.filter {
+            $0.equipment.equipmentID == equipmentID
+        }
+    }
+
+    func getActiveBorrowings() -> [BorrowingRecord] {
+        borrowingRecords.filter { !$0.isReturned }
+    }
+}
+
+// MARK: - Main Screen
+
+struct ContentView: View {
+    @StateObject private var store = EquipmentStore()
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack {
+                        summaryItem(
+                            title: "Total",
+                            value: store.equipmentList.count
+                        )
+
+                        Spacer()
+
+                        summaryItem(
+                            title: "Available",
+                            value: store.equipmentList.filter {
+                                $0.isAvailable
+                            }.count
+                        )
+
+                        Spacer()
+
+                        summaryItem(
+                            title: "Borrowed",
+                            value: store.getActiveBorrowings().count
+                        )
+                    }
+                    .padding(.vertical, 8)
+                }
+
+                Section("Equipment List") {
+                    ForEach(store.equipmentList) { equipment in
+                        NavigationLink {
+                            EquipmentDetailView(
+                                store: store,
+                                equipment: equipment
+                            )
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(equipment.name)
+                                        .font(.headline)
+
+                                    Text(equipment.equipmentID)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+
+                                    Text(equipment is Laptop ? "Laptop" :
+                                         equipment is Tablet ? "Tablet" :
+                                         "Digital Camera")
+                                        .font(.caption)
+                                }
+
+                                Spacer()
+
+                                Text(
+                                    equipment.isAvailable
+                                    ? "Available"
+                                    : "Borrowed"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(
+                                    equipment.isAvailable ? .green : .red
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    NavigationLink("Borrowing History") {
+                        BorrowingHistoryView(store: store)
+                    }
+                }
+            }
+            .navigationTitle("Library Equipment")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        EquipmentFormView(store: store)
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+        }
+    }
+
+    private func summaryItem(title: String, value: Int) -> some View {
+        VStack {
+            Text("\(value)")
+                .font(.title2)
+                .bold()
+
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Equipment Detail
+
+struct EquipmentDetailView: View {
+    @ObservedObject var store: EquipmentStore
+    let equipment: Equipment
+
+    @State private var borrower = ""
+    @State private var alertMessage = ""
+    @State private var showAlert = false
+
+    var body: some View {
+        Form {
+            Section("Equipment Information") {
+                infoRow("ID", equipment.equipmentID)
+                infoRow("Name", equipment.name)
+                infoRow("Manufacturer", equipment.manufacturer)
+                infoRow("Purchase Year", "\(equipment.purchaseYear)")
+
+                HStack {
+                    Text("Status")
+                    Spacer()
+                    Text(equipment.isAvailable ? "Available" : "Borrowed")
+                        .foregroundStyle(
+                            equipment.isAvailable ? .green : .red
+                        )
+                }
+            }
+
+            Section("Category Information") {
+                if let laptop = equipment as? Laptop {
+                    infoRow("Processor", laptop.processor)
+                    infoRow("Memory", "\(laptop.memory) GB")
+                    infoRow("Storage", "\(laptop.storage) GB")
+                }
+
+                if let tablet = equipment as? Tablet {
+                    infoRow("Screen Size", "\(tablet.screenSize) inches")
+                    infoRow("Battery", "\(tablet.batteryCapacity) mAh")
+                    infoRow("Supports Pen", tablet.supportsPen ? "Yes" : "No")
+                }
+
+                if let camera = equipment as? DigitalCamera {
+                    infoRow("Resolution", "\(camera.resolution) MP")
+                    infoRow("Optical Zoom", "\(camera.opticalZoom)x")
+                }
+            }
+
+            Section {
+                NavigationLink("Edit Equipment") {
+                    EquipmentFormView(
+                        store: store,
+                        editingEquipment: equipment
+                    )
+                }
+            }
+
+            Section("Borrowing") {
+                if equipment.isAvailable {
+                    TextField("Borrower's Name", text: $borrower)
+
+                    Button("Borrow Equipment") {
+                        borrowEquipment()
+                    }
+                    .disabled(borrower.trimmingCharacters(
+                        in: .whitespaces
+                    ).isEmpty)
+
+                    Button("Test Invalid Return") {
+                        returnEquipment()
+                    }
+                    .foregroundStyle(.red)
+                } else {
+                    Button("Return Equipment") {
+                        returnEquipment()
+                    }
+                    .foregroundStyle(.green)
+                }
+            }
+
+            Section {
+                NavigationLink("Borrowing History") {
+                    EquipmentBorrowingHistoryView(
+                        store: store,
+                        equipmentID: equipment.equipmentID
+                    )
+                }
+            }
+        }
+        .navigationTitle("Equipment Details")
+        .alert("Result", isPresented: $showAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+
+    private func infoRow(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func borrowEquipment() {
+        do {
+            try store.borrowEquipment(
+                equipmentID: equipment.equipmentID,
+                borrower: borrower
+            )
+
+            alertMessage = "Equipment borrowed successfully."
+            borrower = ""
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+
+        showAlert = true
+    }
+
+    private func returnEquipment() {
+        do {
+            try store.returnEquipment(
+                equipmentID: equipment.equipmentID
+            )
+
+            alertMessage = "Equipment returned successfully."
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+
+        showAlert = true
+    }
+}
+
+// MARK: - Register and Edit Equipment
+
+struct EquipmentFormView: View {
+    @ObservedObject var store: EquipmentStore
+
+    var editingEquipment: Equipment?
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var equipmentID = ""
+    @State private var name = ""
+    @State private var manufacturer = ""
+    @State private var purchaseYear = "\(Calendar.current.component(.year, from: Date()))"
+
+    @State private var category = "Laptop"
+
+    @State private var processor = ""
+    @State private var memory = "16"
+    @State private var storage = "512"
+
+    @State private var screenSize = "10.9"
+    @State private var batteryCapacity = "7600"
+    @State private var supportsPen = true
+
+    @State private var resolution = "24.2"
+    @State private var opticalZoom = "3"
+
+    @State private var alertMessage = ""
+    @State private var showAlert = false
+    @State private var shouldDismiss = false
+
+    private var isEditing: Bool {
+        editingEquipment != nil
+    }
+
+    var body: some View {
+        Form {
+            Section("Basic Information") {
+                TextField("Equipment ID", text: $equipmentID)
+                    .disabled(isEditing)
+
+                TextField("Name", text: $name)
+
+                TextField("Manufacturer", text: $manufacturer)
+
+                TextField("Purchase Year", text: $purchaseYear)
+                    .keyboardType(.numberPad)
+                    .disabled(isEditing)
+            }
+
+            if !isEditing {
+                Section("Equipment Category") {
+                    Picker("Category", selection: $category) {
+                        Text("Laptop").tag("Laptop")
+                        Text("Tablet").tag("Tablet")
+                        Text("Digital Camera").tag("Digital Camera")
+                    }
+                }
+
+                if category == "Laptop" {
+                    Section("Laptop Information") {
+                        TextField("Processor", text: $processor)
+
+                        TextField("Memory (GB)", text: $memory)
+                            .keyboardType(.numberPad)
+
+                        TextField("Storage (GB)", text: $storage)
+                            .keyboardType(.numberPad)
+                    }
+                }
+
+                if category == "Tablet" {
+                    Section("Tablet Information") {
+                        TextField("Screen Size (inches)", text: $screenSize)
+                            .keyboardType(.decimalPad)
+
+                        TextField("Battery Capacity (mAh)", text: $batteryCapacity)
+                            .keyboardType(.numberPad)
+
+                        Toggle("Supports Digital Pen", isOn: $supportsPen)
+                    }
+                }
+
+                if category == "Digital Camera" {
+                    Section("Camera Information") {
+                        TextField("Resolution (MP)", text: $resolution)
+                            .keyboardType(.decimalPad)
+
+                        TextField("Optical Zoom", text: $opticalZoom)
+                            .keyboardType(.numberPad)
+                    }
+                }
+            }
+
+            Section {
+                Button(isEditing ? "Save Changes" : "Register Equipment") {
+                    saveEquipment()
+                }
+            }
+        }
+        .navigationTitle(isEditing ? "Edit Equipment" : "Register Equipment")
+        .onAppear {
+            loadEditingData()
+        }
+        .alert("Result", isPresented: $showAlert) {
+            Button("OK") {
+                if shouldDismiss {
+                    dismiss()
+                }
+            }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+
+    private func loadEditingData() {
+        guard let equipment = editingEquipment else { return }
+
+        equipmentID = equipment.equipmentID
+        name = equipment.name
+        manufacturer = equipment.manufacturer
+        purchaseYear = "\(equipment.purchaseYear)"
+    }
+
+    private func saveEquipment() {
+        let cleanID = equipmentID.trimmingCharacters(in: .whitespaces)
+        let cleanName = name.trimmingCharacters(in: .whitespaces)
+        let cleanManufacturer = manufacturer.trimmingCharacters(in: .whitespaces)
+
+        guard !cleanID.isEmpty,
+              !cleanName.isEmpty,
+              !cleanManufacturer.isEmpty,
+              let year = Int(purchaseYear),
+              year > 0,
+              year <= Calendar.current.component(.year, from: Date()) else {
+            showError("Please enter valid basic information.")
+            return
+        }
+
+        if isEditing {
+            do {
+                try store.updateEquipment(
+                    id: cleanID,
+                    name: cleanName,
+                    manufacturer: cleanManufacturer
+                )
+
+                showSuccess("Equipment updated successfully.")
+            } catch {
+                showError(error.localizedDescription)
+            }
+
+            return
+        }
+
+        let newEquipment: Equipment
+
+        switch category {
+        case "Laptop":
+            guard !processor.trimmingCharacters(in: .whitespaces).isEmpty,
+                  let ram = Int(memory),
+                  let disk = Int(storage),
+                  ram > 0, disk > 0 else {
+                showError("Please enter valid laptop information.")
+                return
+            }
+
+            newEquipment = Laptop(
+                equipmentID: cleanID,
+                name: cleanName,
+                manufacturer: cleanManufacturer,
+                purchaseYear: year,
+                processor: processor,
+                memory: ram,
+                storage: disk
+            )
+
+        case "Tablet":
+            guard let size = Double(screenSize),
+                  let battery = Int(batteryCapacity),
+                  size > 0, battery > 0 else {
+                showError("Please enter valid tablet information.")
+                return
+            }
+
+            newEquipment = Tablet(
+                equipmentID: cleanID,
+                name: cleanName,
+                manufacturer: cleanManufacturer,
+                purchaseYear: year,
+                screenSize: size,
+                batteryCapacity: battery,
+                supportsPen: supportsPen
+            )
+
+        default:
+            guard let mp = Double(resolution),
+                  let zoom = Int(opticalZoom),
+                  mp > 0, zoom > 0 else {
+                showError("Please enter valid camera information.")
+                return
+            }
+
+            newEquipment = DigitalCamera(
+                equipmentID: cleanID,
+                name: cleanName,
+                manufacturer: cleanManufacturer,
+                purchaseYear: year,
+                resolution: mp,
+                opticalZoom: zoom
+            )
+        }
+
+        do {
+            try store.registerEquipment(newEquipment)
+            showSuccess("Equipment registered successfully.")
+        } catch {
+            showError(error.localizedDescription)
+        }
+    }
+
+    private func showError(_ message: String) {
+        alertMessage = message
+        shouldDismiss = false
+        showAlert = true
+    }
+
+    private func showSuccess(_ message: String) {
+        alertMessage = message
+        shouldDismiss = true
+        showAlert = true
+    }
+}
+
+// MARK: - Borrowing History
+
+struct BorrowingHistoryView: View {
+    @ObservedObject var store: EquipmentStore
+
+    var body: some View {
+        List {
+            if store.borrowingRecords.isEmpty {
+                ContentUnavailableView(
+                    "No Borrowing Records",
+                    systemImage: "clock"
+                )
+            } else {
+                ForEach(store.borrowingRecords) { record in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(record.equipment.name)
+                            .font(.headline)
+
+                        Text("ID: \(record.equipment.equipmentID)")
+                        Text("Borrower: \(record.borrower)")
+
+                        Text("Borrow Date: \(record.borrowDate.formatted(date: .abbreviated, time: .shortened))")
+
+                        if let returnDate = record.returnDate {
+                            Text("Return Date: \(returnDate.formatted(date: .abbreviated, time: .shortened))")
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("Currently Borrowed")
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .font(.subheadline)
+                }
+            }
+        }
+        .navigationTitle("Borrowing History")
+    }
+}
+
+// MARK: - Equipment Borrowing History
+
+struct EquipmentBorrowingHistoryView: View {
+    @ObservedObject var store: EquipmentStore
+    let equipmentID: String
+
+    private var records: [BorrowingRecord] {
+        store.getBorrowingHistory(equipmentID: equipmentID)
+    }
+
+    var body: some View {
+        List {
+            if records.isEmpty {
+                ContentUnavailableView(
+                    "No History",
+                    systemImage: "clock"
+                )
+            } else {
+                ForEach(records) { record in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Borrower: \(record.borrower)")
+                            .font(.headline)
+
+                        Text("Borrow Date: \(record.borrowDate.formatted(date: .abbreviated, time: .shortened))")
+
+                        if let returnDate = record.returnDate {
+                            Text("Return Date: \(returnDate.formatted(date: .abbreviated, time: .shortened))")
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("Not Returned")
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .font(.subheadline)
+                }
+            }
+        }
+        .navigationTitle("Equipment History")
+    }
+}
